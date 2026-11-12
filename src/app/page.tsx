@@ -258,6 +258,12 @@ export default function Home() {
                 </div>
               </div>
 
+              {error && (
+                <p className="text-sm text-red-500 dark:text-red-400 text-center" role="alert">
+                  {error}
+                </p>
+              )}
+
               <div className="button-row flex gap-3">
                 <button
                   onClick={handleRefresh}
