@@ -16,6 +16,7 @@ interface LogEntry {
 
 interface BalanceData {
   clientName: string;
+  apiKey: string | null;
   tokenBalance: number;
   tokenLimit: number | null;
   usedTokens: number | null;
@@ -80,9 +81,10 @@ export default function Home() {
   const [darkMode, setDarkMode] = useState(false);
   const [lang, setLang] = useState<Lang>("ru");
 
-  // Навигация и состояния вкладок
+  // Навигация и состояния
   const [activeTab, setActiveTab] = useState<TabKey>("overview");
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  const [showApiKey, setShowApiKey] = useState(false);
 
   // Модели
   const [modelSearch, setModelSearch] = useState("");
@@ -102,7 +104,6 @@ export default function Home() {
   const [errorInput, setErrorInput] = useState("");
   const [errorDiagnosis, setErrorDiagnosis] = useState<string | null>(null);
 
-  // Инициализация темы
   useEffect(() => {
     const savedTheme = localStorage.getItem("whpp_theme");
     if (savedTheme === "dark") {
@@ -156,7 +157,13 @@ export default function Home() {
     return `${ms} ${lang === "ru" ? "мс" : "ms"}`;
   };
 
+  const maskKey = (key: string): string => {
+    if (key.length <= 12) return "••••••••••••";
+    return `${key.slice(0, 8)}••••••••••••••••${key.slice(-4)}`;
+  };
+
   const copyText = async (text: string, key: string) => {
+    if (!text) return;
     try {
       await navigator.clipboard.writeText(text);
       setCopiedKey(key);
@@ -238,6 +245,7 @@ export default function Home() {
     setAccessCode("");
     setActiveCode("");
     setBalanceData(null);
+    setShowApiKey(false);
     setError("");
     setActiveTab("overview");
     setHistoryModelFilter("all");
@@ -254,7 +262,6 @@ export default function Home() {
     }
   };
 
-  // Фильтрация моделей
   const filteredModels = useMemo(() => {
     if (!balanceData?.models) return [];
     const q = modelSearch.trim().toLowerCase();
@@ -268,7 +275,6 @@ export default function Home() {
       if (modelFamily === "Nemotron") return lower.includes("nemotron");
       if (modelFamily === "Gemini") return lower.includes("gemini");
       if (modelFamily === "Grok") return lower.includes("grok");
-      // Другие
       return (
         !lower.includes("gpt") &&
         !lower.includes("claude") &&
@@ -280,7 +286,6 @@ export default function Home() {
     });
   }, [balanceData?.models, modelSearch, modelFamily]);
 
-  // Фильтрация логов
   const filteredLogs = useMemo(() => {
     if (!balanceData?.logs) return [];
     return balanceData.logs.filter((log) => {
@@ -333,7 +338,6 @@ export default function Home() {
     return Math.max(0, Math.min(100, pct));
   }, [balanceData]);
 
-  // Активный Base URL и сниппет для мастера подключения
   const activeBaseUrl = useMemo(() => {
     if (!balanceData) return "";
     return appTarget === "claude_cli"
@@ -344,12 +348,13 @@ export default function Home() {
   const connectSnippet = useMemo(() => {
     if (!balanceData) return "";
     const model = selectedModel || balanceData.models[0] || "claude-haiku-4-5";
+    const keyVal = balanceData.apiKey || "ВАШ_API_КЛЮЧ";
     const isWin = osTarget === "windows";
 
     if (appTarget === "claude_cli") {
       return isWin
-        ? `$env:ANTHROPIC_BASE_URL="${balanceData.proxyClaudeUrl}"\n$env:ANTHROPIC_AUTH_TOKEN="ВАШ_API_КЛЮЧ"\nclaude --model ${model}`
-        : `export ANTHROPIC_BASE_URL="${balanceData.proxyClaudeUrl}"\nexport ANTHROPIC_AUTH_TOKEN="ВАШ_API_КЛЮЧ"\nclaude --model ${model}`;
+        ? `$env:ANTHROPIC_BASE_URL="${balanceData.proxyClaudeUrl}"\n$env:ANTHROPIC_AUTH_TOKEN="${keyVal}"\nclaude --model ${model}`
+        : `export ANTHROPIC_BASE_URL="${balanceData.proxyClaudeUrl}"\nexport ANTHROPIC_AUTH_TOKEN="${keyVal}"\nclaude --model ${model}`;
     }
     if (appTarget === "continue") {
       return JSON.stringify(
@@ -360,7 +365,7 @@ export default function Home() {
               provider: "openai",
               model,
               apiBase: balanceData.proxyOpenaiUrl,
-              apiKey: "ВАШ_API_КЛЮЧ",
+              apiKey: keyVal,
             },
           ],
         },
@@ -369,13 +374,12 @@ export default function Home() {
       );
     }
     if (appTarget === "python") {
-      return `from openai import OpenAI\n\nclient = OpenAI(\n    base_url="${balanceData.proxyOpenaiUrl}",\n    api_key="ВАШ_API_КЛЮЧ",\n)\n\nres = client.chat.completions.create(\n    model="${model}",\n    messages=[{"role": "user", "content": "Привет!"}],\n)\nprint(res.choices[0].message.content)`;
+      return `from openai import OpenAI\n\nclient = OpenAI(\n    base_url="${balanceData.proxyOpenaiUrl}",\n    api_key="${keyVal}",\n)\n\nres = client.chat.completions.create(\n    model="${model}",\n    messages=[{"role": "user", "content": "Привет!"}],\n)\nprint(res.choices[0].message.content)`;
     }
     if (appTarget === "curl") {
-      return `curl ${balanceData.proxyOpenaiUrl}/chat/completions \\\n  -H "Content-Type: application/json" \\\n  -H "Authorization: Bearer ВАШ_API_КЛЮЧ" \\\n  -d '{"model":"${model}","messages":[{"role":"user","content":"Привет!"}]}'`;
+      return `curl ${balanceData.proxyOpenaiUrl}/chat/completions \\\n  -H "Content-Type: application/json" \\\n  -H "Authorization: Bearer ${keyVal}" \\\n  -d '{"model":"${model}","messages":[{"role":"user","content":"Привет!"}]}'`;
     }
-    // cursor / codex
-    return `Base URL: ${balanceData.proxyOpenaiUrl}\nAPI Key:  ВАШ_API_КЛЮЧ\nModel:    ${model}`;
+    return `Base URL: ${balanceData.proxyOpenaiUrl}\nAPI Key:  ${keyVal}\nModel:    ${model}`;
   }, [balanceData, appTarget, osTarget, selectedModel]);
 
   const diagnoseError = () => {
@@ -426,7 +430,7 @@ export default function Home() {
   };
 
   const t = {
-    title: lang === "ru" ? "WHPP API" : "WHPP API",
+    title: "WHPP API",
     subtitle: lang === "ru" ? "Кабинет покупателя" : "Client Portal",
     checkBalance: lang === "ru" ? "Проверить баланс" : "Check Balance",
     changeCode: lang === "ru" ? "Сменить код" : "Switch Code",
@@ -442,25 +446,15 @@ export default function Home() {
     },
   };
 
-  const LoginSkeleton = () => (
-    <div className="w-full max-w-md mx-auto card-elevated p-8 space-y-6 animate-pulse">
-      <div className="text-center space-y-4">
-        <div className="skeleton h-10 w-32 mx-auto" />
-        <div className="skeleton h-4 w-48 mx-auto" />
-      </div>
-      <div className="space-y-3">
-        <div className="skeleton h-12 w-full" />
-        <div className="skeleton h-12 w-full" />
-      </div>
-      <div className="skeleton h-14 w-full" />
-    </div>
-  );
-
   if (isLoading) {
     return (
       <main className={`page-root page-root--centered ${darkMode ? "theme-dark" : ""}`}>
         <div className="page-content">
-          <LoginSkeleton />
+          <div className="card-elevated stack-md">
+            <div className="skeleton" style={{ height: 34, width: 140, margin: "0 auto" }} />
+            <div className="skeleton" style={{ height: 48, width: "100%" }} />
+            <div className="skeleton" style={{ height: 48, width: "100%" }} />
+          </div>
         </div>
       </main>
     );
@@ -474,13 +468,10 @@ export default function Home() {
     >
       <div className={`page-content ${balanceData ? "page-content--wide" : ""}`}>
         {!balanceData ? (
-          // ЭКРАН ВХОДА
-          <div className="space-y-4 animate-fade-in">
-            <div className="flex items-center justify-between px-1">
-              <span className="text-xs font-medium text-muted-foreground">
-                {t.subtitle}
-              </span>
-              <div className="flex items-center gap-2">
+          <div className="stack-md">
+            <div className="topbar">
+              <span className="text-muted-sm">{t.subtitle}</span>
+              <div className="topbar-right">
                 <button
                   type="button"
                   onClick={() => setLang((l) => (l === "ru" ? "en" : "ru"))}
@@ -500,24 +491,21 @@ export default function Home() {
               </div>
             </div>
 
-            <div className="card-elevated space-y-6">
-              <div className="text-center space-y-2">
-                <h1 className="text-3xl font-bold font-mono gradient-text">
+            <div className="card-elevated stack-md">
+              <div style={{ textAlign: "center" }} className="stack-sm">
+                <h1 className="brand-title gradient-text" style={{ fontSize: 30, margin: 0 }}>
                   {t.title}
                 </h1>
-                <p className="text-muted-foreground text-base">
+                <p className="text-muted-sm" style={{ fontSize: 15, margin: 0 }}>
                   {lang === "ru"
                     ? "Проверка баланса и настройка подключения"
                     : "Token balance and API setup"}
                 </p>
               </div>
 
-              <form onSubmit={handleSubmit} className="space-y-4">
+              <form onSubmit={handleSubmit} className="stack-md">
                 <div>
-                  <label
-                    htmlFor="accessCode"
-                    className="block text-sm font-medium mb-2"
-                  >
+                  <label htmlFor="accessCode" className="field-label">
                     {lang === "ru" ? "Код доступа" : "Access code"}
                   </label>
                   <input
@@ -536,7 +524,7 @@ export default function Home() {
                 </div>
 
                 {error && (
-                  <p className="text-sm text-red-500 dark:text-red-400 text-center" role="alert">
+                  <p className="error-text" role="alert">
                     {error}
                   </p>
                 )}
@@ -544,23 +532,26 @@ export default function Home() {
                 <button
                   type="submit"
                   disabled={isChecking || !accessCode.trim()}
-                  className="btn-primary w-full"
+                  className="btn-primary btn-full"
                 >
-                  {isChecking ? (lang === "ru" ? "Проверка..." : "Checking...") : t.checkBalance}
+                  {isChecking
+                    ? lang === "ru"
+                      ? "Проверка..."
+                      : "Checking..."
+                    : t.checkBalance}
                 </button>
               </form>
 
-              <p className="text-xs text-muted-foreground text-center">
+              <p className="footer-copy">
                 {lang === "ru"
                   ? "Код сохраняется в браузере для автоматического входа"
                   : "Access code is saved in your browser"}
               </p>
             </div>
 
-            {/* FAQ на экране входа */}
-            <div className="card-elevated space-y-3" style={{ padding: "22px" }}>
+            <div className="card-elevated stack-sm" style={{ padding: 22 }}>
               <div className="section-title">{lang === "ru" ? "Частые вопросы" : "FAQ"}</div>
-              <div className="space-y-2">
+              <div className="stack-sm">
                 {FAQ_ITEMS.slice(0, 4).map((item, idx) => (
                   <div key={idx} className="faq-item">
                     <button
@@ -578,27 +569,21 @@ export default function Home() {
             </div>
           </div>
         ) : (
-          // ЛИЧНЫЙ КАБИНЕТ ПОКУПАТЕЛЯ
-          <div className="space-y-4 animate-fade-in">
-            {/* Верхняя шапка */}
-            <div className="flex flex-wrap items-center justify-between gap-3 px-1">
-              <div className="flex items-center gap-3 flex-wrap">
-                <span className="text-lg font-bold font-mono gradient-text">
-                  {t.title}
-                </span>
+          <div className="stack-md">
+            <div className="topbar">
+              <div className="topbar-left">
+                <span className="brand-title gradient-text">{t.title}</span>
                 <span
-                  className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                    balanceData.tokenBalance > 0
-                      ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400"
-                      : "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400"
+                  className={`status-badge ${
+                    balanceData.tokenBalance > 0 ? "status-badge--ok" : "status-badge--err"
                   }`}
                 >
                   {balanceData.tokenBalance > 0 ? t.active : t.exhausted}
                 </span>
-                <span className="text-sm font-medium">{balanceData.clientName}</span>
+                <span className="client-name">{balanceData.clientName}</span>
               </div>
 
-              <div className="flex items-center gap-2 flex-wrap">
+              <div className="topbar-right">
                 <button
                   type="button"
                   onClick={() => setActiveTab("connect")}
@@ -634,7 +619,6 @@ export default function Home() {
 
             <div className="card-elevated">
               <div className="cabinet-grid">
-                {/* Боковое меню вкладок (без переноса токенов) */}
                 <aside className="sidebar-nav" aria-label="Разделы кабинета">
                   {(
                     [
@@ -656,30 +640,27 @@ export default function Home() {
                   ))}
                 </aside>
 
-                {/* Контент активной вкладки */}
-                <section className="space-y-5 min-w-0">
+                <section className="cabinet-main stack-lg">
                   {activeTab === "overview" && (
-                    <>
-                      {/* Карточка баланса */}
-                      <div className="balance-card rounded-xl p-7 text-center space-y-4 text-primary-foreground relative overflow-hidden">
-                        <div className="absolute inset-0 shimmer" />
-                        <div className="relative z-10 space-y-3">
-                          <p className="text-xs font-medium opacity-85 tracking-widest uppercase">
+                    <div className="stack-md">
+                      <div className="balance-card">
+                        <div className="balance-card-inner">
+                          <div className="balance-label">
                             {lang === "ru" ? "Остаток токенов" : "Token Balance"}
-                          </p>
-                          <p className="text-4xl sm:text-5xl font-mono font-bold tracking-tight">
+                          </div>
+                          <div className="balance-amount">
                             {formatNumber(balanceData.tokenBalance)}
-                          </p>
+                          </div>
 
                           {balanceData.tokenLimit !== null && remainingPercent !== null && (
-                            <div className="max-w-md mx-auto space-y-1.5 pt-1">
+                            <div className="progress-wrap">
                               <div className="progress-track">
                                 <div
                                   className="progress-fill"
                                   style={{ width: `${remainingPercent.toFixed(1)}%` }}
                                 />
                               </div>
-                              <div className="flex justify-between text-xs opacity-80 font-mono">
+                              <div className="progress-labels">
                                 <span>
                                   {lang === "ru" ? "Осталось" : "Left"}{" "}
                                   {remainingPercent.toFixed(1)}%
@@ -692,15 +673,41 @@ export default function Home() {
                             </div>
                           )}
 
-                          <p className="text-xs opacity-75">
+                          <div className="balance-meta">
                             {lang === "ru" ? "Обновлено:" : "Updated:"}{" "}
                             {formatDate(balanceData.updatedAt)}
-                          </p>
+                          </div>
                         </div>
                       </div>
 
-                      {/* Быстрые действия */}
-                      <div className="flex flex-wrap gap-2">
+                      {balanceData.apiKey && (
+                        <div className="endpoint-row">
+                          <div className="endpoint-info">
+                            <div className="endpoint-label">Ваш API-ключ</div>
+                            <div className="endpoint-url">
+                              {showApiKey ? balanceData.apiKey : maskKey(balanceData.apiKey)}
+                            </div>
+                          </div>
+                          <div className="actions-row" style={{ flexWrap: "nowrap" }}>
+                            <button
+                              type="button"
+                              onClick={() => setShowApiKey((v) => !v)}
+                              className="btn-secondary btn-sm"
+                            >
+                              {showApiKey ? "Скрыть" : "Показать"}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => copyText(balanceData.apiKey || "", "overview-key")}
+                              className="btn-primary btn-sm"
+                            >
+                              {copiedKey === "overview-key" ? "Скопировано ✓" : "Копировать"}
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="actions-row">
                         <button
                           type="button"
                           onClick={handleRefresh}
@@ -747,7 +754,6 @@ export default function Home() {
                         </button>
                       </div>
 
-                      {/* Статистика */}
                       <div className="stat-grid">
                         <div className="stat-box">
                           <div className="stat-label">Потрачено</div>
@@ -773,8 +779,7 @@ export default function Home() {
                         </div>
                       </div>
 
-                      {/* Быстрое подключение */}
-                      <div className="section-box space-y-3">
+                      <div className="section-box stack-sm">
                         <div className="section-header" style={{ marginBottom: 0 }}>
                           <span className="section-title">Быстрое подключение</span>
                           <button
@@ -792,8 +797,8 @@ export default function Home() {
                             className="quick-card"
                           >
                             <div>
-                              <div className="text-sm font-semibold">Codex</div>
-                              <div className="text-xs text-muted-foreground">OpenAI /v1</div>
+                              <div style={{ fontSize: 14, fontWeight: 600 }}>Codex</div>
+                              <div className="text-muted-sm">OpenAI /v1</div>
                             </div>
                             <span>→</span>
                           </button>
@@ -803,8 +808,8 @@ export default function Home() {
                             className="quick-card"
                           >
                             <div>
-                              <div className="text-sm font-semibold">Cursor</div>
-                              <div className="text-xs text-muted-foreground">IDE /v1</div>
+                              <div style={{ fontSize: 14, fontWeight: 600 }}>Cursor</div>
+                              <div className="text-muted-sm">IDE /v1</div>
                             </div>
                             <span>→</span>
                           </button>
@@ -814,23 +819,21 @@ export default function Home() {
                             className="quick-card"
                           >
                             <div>
-                              <div className="text-sm font-semibold">Claude Code</div>
-                              <div className="text-xs text-muted-foreground">CLI без /v1</div>
+                              <div style={{ fontSize: 14, fontWeight: 600 }}>Claude Code</div>
+                              <div className="text-muted-sm">CLI без /v1</div>
                             </div>
                             <span>→</span>
                           </button>
                         </div>
                       </div>
-                    </>
+                    </div>
                   )}
 
                   {activeTab === "models" && (
-                    <div className="space-y-4">
+                    <div className="stack-md">
                       <div className="section-header" style={{ marginBottom: 0 }}>
-                        <h3 className="text-lg font-semibold">Доступные модели</h3>
-                        <span className="text-xs text-muted-foreground">
-                          Найдено: {filteredModels.length}
-                        </span>
+                        <h3 className="heading-lg">Доступные модели</h3>
+                        <span className="text-muted-sm">Найдено: {filteredModels.length}</span>
                       </div>
 
                       <input
@@ -841,7 +844,7 @@ export default function Home() {
                         className="input"
                       />
 
-                      <div className="flex flex-wrap gap-1.5">
+                      <div className="pills-wrap">
                         {MODEL_FAMILIES.map((fam) => (
                           <button
                             key={fam}
@@ -856,9 +859,9 @@ export default function Home() {
                         ))}
                       </div>
 
-                      <div className="space-y-2">
+                      <div className="stack-sm">
                         {filteredModels.length === 0 ? (
-                          <div className="section-box text-center text-sm text-muted-foreground">
+                          <div className="section-box text-muted-sm" style={{ textAlign: "center" }}>
                             Модели по вашему запросу не найдены
                           </div>
                         ) : (
@@ -866,8 +869,8 @@ export default function Home() {
                             const isCopied = copiedKey === `model-${model}`;
                             return (
                               <div key={model} className="model-row">
-                                <div className="font-mono text-sm truncate">{model}</div>
-                                <div className="flex items-center gap-2 shrink-0">
+                                <span className="model-name">{model}</span>
+                                <div className="actions-row">
                                   <button
                                     type="button"
                                     onClick={() => copyText(model, `model-${model}`)}
@@ -892,14 +895,12 @@ export default function Home() {
                   )}
 
                   {activeTab === "connect" && (
-                    <div className="space-y-4">
-                      <h3 className="text-lg font-semibold">Мастер подключения</h3>
+                    <div className="stack-md">
+                      <h3 className="heading-lg">Мастер подключения</h3>
 
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div className="form-grid-3">
                         <div>
-                          <label className="block text-xs text-muted-foreground mb-1.5">
-                            Где хотите использовать?
-                          </label>
+                          <label className="field-label">Где хотите использовать?</label>
                           <select
                             value={appTarget}
                             onChange={(e) => setAppTarget(e.target.value as AppTarget)}
@@ -915,9 +916,7 @@ export default function Home() {
                         </div>
 
                         <div>
-                          <label className="block text-xs text-muted-foreground mb-1.5">
-                            Ваша система
-                          </label>
+                          <label className="field-label">Ваша система</label>
                           <select
                             value={osTarget}
                             onChange={(e) => setOsTarget(e.target.value as OsTarget)}
@@ -930,9 +929,7 @@ export default function Home() {
                         </div>
 
                         <div>
-                          <label className="block text-xs text-muted-foreground mb-1.5">
-                            Модель
-                          </label>
+                          <label className="field-label">Модель</label>
                           <select
                             value={selectedModel || balanceData.models[0] || ""}
                             onChange={(e) => setSelectedModel(e.target.value)}
@@ -947,28 +944,55 @@ export default function Home() {
                         </div>
                       </div>
 
-                      <div className="section-box space-y-2.5">
-                        <div className="endpoint-row">
-                          <div className="min-w-0">
-                            <div className="text-[11px] text-muted-foreground">
-                              Base URL
+                      <div className="section-box stack-sm">
+                        {balanceData.apiKey && (
+                          <div className="endpoint-row">
+                            <div className="endpoint-info">
+                              <div className="endpoint-label">API Key</div>
+                              <div className="endpoint-url">
+                                {showApiKey
+                                  ? balanceData.apiKey
+                                  : maskKey(balanceData.apiKey)}
+                              </div>
                             </div>
+                            <div className="actions-row" style={{ flexWrap: "nowrap" }}>
+                              <button
+                                type="button"
+                                onClick={() => setShowApiKey((v) => !v)}
+                                className="btn-secondary btn-sm"
+                              >
+                                {showApiKey ? "Скрыть" : "Показать"}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  copyText(balanceData.apiKey || "", "connect-key")
+                                }
+                                className="btn-secondary btn-sm"
+                              >
+                                {copiedKey === "connect-key" ? "Скопировано ✓" : "Копировать"}
+                              </button>
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="endpoint-row">
+                          <div className="endpoint-info">
+                            <div className="endpoint-label">Base URL</div>
                             <div className="endpoint-url">{activeBaseUrl}</div>
                           </div>
                           <button
                             type="button"
                             onClick={() => copyText(activeBaseUrl, "connect-baseurl")}
-                            className="btn-secondary btn-sm shrink-0"
+                            className="btn-secondary btn-sm"
                           >
                             {copiedKey === "connect-baseurl" ? "Скопировано ✓" : "Копировать"}
                           </button>
                         </div>
 
                         <div className="endpoint-row">
-                          <div className="min-w-0">
-                            <div className="text-[11px] text-muted-foreground">
-                              Model ID
-                            </div>
+                          <div className="endpoint-info">
+                            <div className="endpoint-label">Model ID</div>
                             <div className="endpoint-url">
                               {selectedModel || balanceData.models[0] || "—"}
                             </div>
@@ -981,15 +1005,15 @@ export default function Home() {
                                 "connect-model"
                               )
                             }
-                            className="btn-secondary btn-sm shrink-0"
+                            className="btn-secondary btn-sm"
                           >
                             {copiedKey === "connect-model" ? "Скопировано ✓" : "Копировать"}
                           </button>
                         </div>
                       </div>
 
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between">
+                      <div className="stack-sm">
+                        <div className="section-header" style={{ marginBottom: 0 }}>
                           <span className="section-title">Готовые настройки</span>
                           <button
                             type="button"
@@ -1007,12 +1031,12 @@ export default function Home() {
                   )}
 
                   {activeTab === "history" && (
-                    <div className="space-y-4">
+                    <div className="stack-md">
                       <div className="section-header" style={{ marginBottom: 0 }}>
-                        <h3 className="text-lg font-semibold">
+                        <h3 className="heading-lg">
                           История запросов ({filteredLogs.length})
                         </h3>
-                        <div className="flex items-center gap-2">
+                        <div className="actions-row">
                           <button
                             type="button"
                             onClick={handleRefresh}
@@ -1032,7 +1056,7 @@ export default function Home() {
                         </div>
                       </div>
 
-                      <div className="flex flex-wrap gap-1.5">
+                      <div className="pills-wrap">
                         <button
                           type="button"
                           onClick={() => setHistoryModelFilter("all")}
@@ -1094,36 +1118,30 @@ export default function Home() {
                           <tbody>
                             {filteredLogs.length === 0 ? (
                               <tr>
-                                <td colSpan={7} className="text-center opacity-70 py-6">
+                                <td colSpan={7} style={{ textAlign: "center", padding: 24 }}>
                                   Нет записей по выбранным фильтрам
                                 </td>
                               </tr>
                             ) : (
                               filteredLogs.map((log, idx) => (
                                 <tr key={`${log.createdAt}-${idx}`}>
-                                  <td className="font-mono text-xs">
-                                    {formatTimeShort(log.createdAt)}
-                                  </td>
-                                  <td className="font-mono text-xs">{log.model}</td>
-                                  <td className="font-mono text-xs">
+                                  <td>{formatTimeShort(log.createdAt)}</td>
+                                  <td>{log.model}</td>
+                                  <td>
                                     {formatNumber(log.inputTokens)} /{" "}
                                     {formatNumber(log.outputTokens)}
                                   </td>
-                                  <td className="font-mono text-xs">
-                                    {formatNumber(log.cachedTokens)}
-                                  </td>
-                                  <td className="font-mono text-xs font-semibold">
+                                  <td>{formatNumber(log.cachedTokens)}</td>
+                                  <td style={{ fontWeight: 700 }}>
                                     -{formatNumber(log.costTokens)}
                                   </td>
-                                  <td className="font-mono text-xs">
-                                    {formatLatency(log.latencyMs)}
-                                  </td>
+                                  <td>{formatLatency(log.latencyMs)}</td>
                                   <td>
                                     <span
-                                      className={`inline-flex px-2 py-0.5 rounded-md text-[11px] font-medium ${
+                                      className={`status-badge ${
                                         log.status === "success"
-                                          ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400"
-                                          : "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400"
+                                          ? "status-badge--ok"
+                                          : "status-badge--err"
                                       }`}
                                     >
                                       {log.status === "success" ? "OK" : "Ошибка"}
@@ -1139,10 +1157,10 @@ export default function Home() {
                   )}
 
                   {activeTab === "help" && (
-                    <div className="space-y-5">
-                      <h3 className="text-lg font-semibold">Помощь и диагностика</h3>
+                    <div className="stack-md">
+                      <h3 className="heading-lg">Помощь и диагностика</h3>
 
-                      <div className="section-box space-y-3">
+                      <div className="section-box stack-sm">
                         <div className="section-title">Разбор ошибки</div>
                         <textarea
                           value={errorInput}
@@ -1150,7 +1168,7 @@ export default function Home() {
                           placeholder="Вставьте текст ошибки из редактора или терминала (необязательно)..."
                           className="textarea-input"
                         />
-                        <div className="flex flex-wrap gap-2">
+                        <div className="actions-row">
                           <button
                             type="button"
                             onClick={diagnoseError}
@@ -1174,13 +1192,11 @@ export default function Home() {
                           </button>
                         </div>
                         {errorDiagnosis && (
-                          <div className="text-sm p-3 rounded-xl bg-indigo-50 text-indigo-950 dark:bg-indigo-950/50 dark:text-indigo-200 border border-indigo-200 dark:border-indigo-800">
-                            {errorDiagnosis}
-                          </div>
+                          <div className="diagnosis-box">{errorDiagnosis}</div>
                         )}
                       </div>
 
-                      <div className="space-y-2">
+                      <div className="stack-sm">
                         <div className="section-title">Частые вопросы</div>
                         {FAQ_ITEMS.map((item, idx) => (
                           <div key={idx} className="faq-item">
@@ -1200,7 +1216,7 @@ export default function Home() {
                   )}
 
                   {error && (
-                    <p className="text-sm text-red-500 dark:text-red-400 text-center" role="alert">
+                    <p className="error-text" role="alert">
                       {error}
                     </p>
                   )}
@@ -1208,9 +1224,7 @@ export default function Home() {
               </div>
             </div>
 
-            <p className="text-xs text-muted-foreground text-center">
-              © 2026 WHPP API. Все права защищены.
-            </p>
+            <p className="footer-copy">© 2026 WHPP API. Все права защищены.</p>
           </div>
         )}
       </div>

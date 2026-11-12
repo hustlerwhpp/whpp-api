@@ -113,7 +113,7 @@ export async function POST(request: NextRequest) {
         ? data.models.filter((m: unknown): m is string => typeof m === 'string')
         : [];
 
-      // Отбрасываем error_message, key, apiBase, requestId, portal, warnings
+      // Отбрасываем apiBase, requestId, portal, warnings и error_message
       const safeLogs = Array.isArray(data?.logs)
         ? (data.logs as UpstreamLog[])
             .slice(0, 50)
@@ -135,6 +135,7 @@ export async function POST(request: NextRequest) {
 
       return NextResponse.json({
         clientName: client.name,
+        apiKey: typeof data?.key === 'string' ? data.key : null,
         tokenBalance,
         tokenLimit,
         usedTokens,
