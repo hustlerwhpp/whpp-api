@@ -11,3 +11,6 @@
  ○ Compiling /api/balance ...
  ✓ Compiled /api/balance in 529ms (56 modules)
  POST /api/balance 200 in 1118ms
+ ✓ Compiled in 3.4s (203 modules)
+ ✓ Compiled in 686ms (203 modules)
+ ✓ Compiled in 238ms (203 modules)
