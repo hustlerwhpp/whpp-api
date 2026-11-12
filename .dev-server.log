@@ -14,3 +14,11 @@
  GET / 200 in 6048ms
  ✓ Compiled in 314ms (245 modules)
  GET / 200 in 74ms
+ ⚠ Found a change in next.config.js. Restarting the server to apply the changes...
+ ⚠ Port 3000 is in use, trying 3001 instead.
+  ▲ Next.js 14.2.35
+  - Local:        http://localhost:3001
+  - Environments: .env.local
+
+ ✓ Starting...
+ ✓ Ready in 3.2s
