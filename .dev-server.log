@@ -1,0 +1,16 @@
+
+> whpp-api@1.0.0 dev
+> next dev
+
+ ⚠ Port 3000 is in use, trying 3001 instead.
+  ▲ Next.js 14.2.35
+  - Local:        http://localhost:3001
+  - Environments: .env.local
+
+ ✓ Starting...
+ ✓ Ready in 2.1s
+ ○ Compiling / ...
+ ✓ Compiled / in 5.7s (502 modules)
+ GET / 200 in 6048ms
+ ✓ Compiled in 314ms (245 modules)
+ GET / 200 in 74ms

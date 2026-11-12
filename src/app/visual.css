@@ -1,0 +1,89 @@
+/* Надёжные стили интерфейса без зависимости от utility-классов */
+.page-root {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 20px;
+  position: relative;
+  overflow: hidden;
+  background: #f8fafc;
+  color: #172033;
+}
+.page-root::before,
+.page-root::after {
+  content: "";
+  position: absolute;
+  border-radius: 999px;
+  filter: blur(2px);
+  pointer-events: none;
+}
+.page-root::before { width: 420px; height: 420px; top: -180px; right: -120px; background: #dbeafe; opacity: .8; }
+.page-root::after { width: 360px; height: 360px; bottom: -180px; left: -100px; background: #ede9fe; opacity: .8; }
+.page-content { width: 100%; max-width: 470px; position: relative; z-index: 1; }
+.card-elevated {
+  background: rgba(255,255,255,.92) !important;
+  border: 1px solid #e5e7eb !important;
+  border-radius: 24px !important;
+  box-shadow: 0 24px 70px rgba(30,41,59,.13) !important;
+  padding: 36px !important;
+}
+.input {
+  box-sizing: border-box;
+  width: 100%;
+  height: 54px;
+  border: 1px solid #d7dee9 !important;
+  border-radius: 13px !important;
+  background: #fff !important;
+  color: #172033 !important;
+  padding: 0 16px !important;
+  font-size: 15px;
+  transition: border-color .2s, box-shadow .2s;
+}
+.input:focus { border-color: #6366f1 !important; box-shadow: 0 0 0 4px rgba(99,102,241,.14); }
+.btn-primary, .btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: .5rem;
+  box-sizing: border-box;
+  min-width: 0;
+  min-height: 52px;
+  padding: 0 1rem;
+  border-radius: 13px !important;
+  border: 0;
+  white-space: nowrap;
+  font-size: 15px;
+  cursor: pointer;
+  transition: transform .2s, filter .2s;
+}
+.button-row {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 12px;
+  width: 100%;
+  align-items: stretch;
+}
+.button-row > .btn-primary,
+.button-row > .btn-secondary {
+  flex: 1 1 0;
+  width: 50% !important;
+}
+@media (max-width: 400px) {
+  .button-row { flex-wrap: wrap; }
+  .button-row > .btn-primary,
+  .button-row > .btn-secondary { flex: 1 1 100%; width: 100% !important; }
+}
+.btn-primary { background: linear-gradient(135deg,#4f46e5,#2563eb) !important; color: white !important; box-shadow: 0 10px 22px rgba(79,70,229,.22); }
+.btn-primary:hover { transform: translateY(-1px); filter: brightness(1.05); }
+.btn-secondary { background: #eef2ff !important; color: #3730a3 !important; }
+.balance-card { background: linear-gradient(135deg,#111827,#3730a3) !important; border: 0 !important; box-shadow: 0 16px 30px rgba(49,46,129,.24) !important; }
+.gradient-text { background: linear-gradient(135deg,#4338ca,#2563eb) !important; -webkit-background-clip: text !important; background-clip: text !important; }
+@media (max-width: 520px) { .page-root { padding: 24px 14px; } .card-elevated { padding: 24px !important; border-radius: 20px !important; } }
+@media (prefers-color-scheme: dark) {
+  .page-root { background: #0b1120; color: #f8fafc; }
+  .page-root::before { background: #172554; } .page-root::after { background: #312e81; }
+  .card-elevated { background: rgba(15,23,42,.94) !important; border-color: #26344d !important; box-shadow: 0 24px 70px rgba(0,0,0,.3) !important; }
+  .input { background: #111827 !important; color: #f8fafc !important; border-color: #334155 !important; }
+  .btn-secondary { background: #1e293b !important; color: #c7d2fe !important; }
+}
