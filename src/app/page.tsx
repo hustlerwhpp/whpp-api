@@ -175,23 +175,19 @@ export default function Home() {
     }
   };
 
-  const checkBalance = async (code: string) => {
+  // Баланс — только по сессии (httpOnly-cookie). Код доступа в localStorage
+  // больше не хранится: он живёт только в памяти вкладки для ссылки на кабинет.
+  const fetchBalanceData = async () => {
     setError("");
     setIsChecking(true);
 
     try {
-      const response = await fetch("/api/balance", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ accessCode: code }),
-      });
-
+      const response = await fetch("/api/balance");
       const data = await response.json();
 
       if (!response.ok) {
         if (response.status === 401) {
-          setError(data.error || "Неверный код доступа");
-          localStorage.removeItem("accessCode");
+          setError(data.error || "Требуется вход");
           setBalanceData(null);
           setActiveCode("");
         } else {
@@ -201,8 +197,6 @@ export default function Home() {
       }
 
       setBalanceData(data);
-      setActiveCode(code);
-      localStorage.setItem("accessCode", code);
       if (Array.isArray(data.models) && data.models.length > 0) {
         setSelectedModel((prev) => prev || data.models[0]);
       }
@@ -215,33 +209,79 @@ export default function Home() {
     }
   };
 
+  const loginWithCode = async (code: string) => {
+    setError("");
+    setIsChecking(true);
+
+    try {
+      const response = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ accessCode: code }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setError(data.error || "Неверный код доступа");
+        setBalanceData(null);
+        setActiveCode("");
+        setIsChecking(false);
+        setIsLoading(false);
+        return;
+      }
+
+      setActiveCode(code);
+      await fetchBalanceData();
+    } catch (err) {
+      console.error("Login error:", err);
+      setError("Ошибка сети. Проверьте подключение и попробуйте снова.");
+      setIsChecking(false);
+      setIsLoading(false);
+    }
+  };
+
   useEffect(() => {
+    // Старые коды из localStorage больше не используются — чистим.
+    localStorage.removeItem("accessCode");
+
     const params = new URLSearchParams(window.location.search);
     const codeFromUrl = params.get("code");
 
     if (codeFromUrl) {
-      checkBalance(codeFromUrl);
+      loginWithCode(codeFromUrl);
       return;
     }
 
-    const savedCode = localStorage.getItem("accessCode");
-    if (savedCode) {
-      checkBalance(savedCode);
-    } else {
+    (async () => {
+      try {
+        const res = await fetch("/api/auth/me");
+        const data = await res.json();
+        if (res.ok && data.role === "client") {
+          setActiveCode(data.code || "");
+          await fetchBalanceData();
+          return;
+        }
+      } catch {
+        // Нет сессии — показываем форму входа
+      }
       setIsLoading(false);
-    }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
     const code = accessCode.trim();
     if (code) {
-      checkBalance(code);
+      loginWithCode(code);
     }
   };
 
   const handleLogout = () => {
-    localStorage.removeItem("accessCode");
+    fetch("/api/auth/logout", { method: "POST" }).catch(() => {
+      // Игнорируем
+    });
     setAccessCode("");
     setActiveCode("");
     setBalanceData(null);
@@ -256,10 +296,7 @@ export default function Home() {
   };
 
   const handleRefresh = () => {
-    const code = activeCode || localStorage.getItem("accessCode");
-    if (code) {
-      checkBalance(code);
-    }
+    fetchBalanceData();
   };
 
   const filteredModels = useMemo(() => {
@@ -544,8 +581,10 @@ export default function Home() {
 
               <p className="footer-copy">
                 {lang === "ru"
-                  ? "Код сохраняется в браузере для автоматического входа"
-                  : "Access code is saved in your browser"}
+                  ? "Вход запоминается в браузере"
+                  : "Login is remembered in your browser"}
+                {" · "}
+                <a href="/admin">Вход для администратора</a>
               </p>
             </div>
 
