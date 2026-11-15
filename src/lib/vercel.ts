@@ -31,7 +31,16 @@ function projectId(): string {
 
 function teamQuery(): string {
   const team = process.env.VERCEL_TEAM_ID?.trim();
-  return team ? `?teamId=${encodeURIComponent(team)}` : "";
+  return team ? `teamId=${encodeURIComponent(team)}` : "";
+}
+
+function envQuery(decrypt: boolean): string {
+  const params = new URLSearchParams();
+  if (decrypt) params.set("decrypt", "true");
+  const team = process.env.VERCEL_TEAM_ID?.trim();
+  if (team) params.set("teamId", team);
+  const qs = params.toString();
+  return qs ? `?${qs}` : "";
 }
 
 async function vercelFetch(path: string, init?: RequestInit): Promise<unknown> {
@@ -75,8 +84,10 @@ interface EnvVar {
 }
 
 async function listEnvVars(): Promise<EnvVar[]> {
+  // decrypt=true обязателен: CLIENTS_MAP хранится как encrypted, и без него
+  // API отдаёт шифротекст вместо JSON, а админка видела бы пустой список.
   const data = (await vercelFetch(
-    `/v9/projects/${projectId()}/env${teamQuery()}`
+    `/v10/projects/${projectId()}/env${envQuery(true)}`
   )) as { envs?: EnvVar[] };
   return Array.isArray(data?.envs) ? data.envs : [];
 }
@@ -93,6 +104,15 @@ export async function getClientsMapFromVercel(): Promise<ClientsMap | null> {
     const vars = await listEnvVars();
     const found = vars.find((v) => v.key === "CLIENTS_MAP");
     if (!found) return null;
+    // Значение может быть нечитаемым (шифротекст без decrypt) — тогда null,
+    // и вызывающий код откатится на process.env запущенного деплоя,
+    // а не покажет пустой список.
+    try {
+      JSON.parse(found.value);
+    } catch {
+      console.error("getClientsMapFromVercel: значение CLIENTS_MAP не JSON");
+      return null;
+    }
     return parseClientsMap(found.value);
   } catch (error) {
     console.error("getClientsMapFromVercel error:", error);
@@ -105,6 +125,9 @@ export async function updateClientsMapEnv(map: ClientsMap): Promise<void> {
   const value = JSON.stringify(map);
   const existing = (await listEnvVars()).find((v) => v.key === "CLIENTS_MAP");
   const target = existing?.target && existing.target.length > 0 ? existing.target : ["production", "preview"];
+  // Тип сохраняем как был (encrypted для секретов): админка читает значение
+  // обратно через decrypt=true, а в дашборде оно скрыто.
+  const type = existing?.type || "encrypted";
 
   if (existing) {
     await vercelFetch(`/v9/projects/${projectId()}/env/${existing.id}${teamQuery()}`, {
@@ -114,7 +137,7 @@ export async function updateClientsMapEnv(map: ClientsMap): Promise<void> {
 
   await vercelFetch(`/v10/projects/${projectId()}/env${teamQuery()}`, {
     method: "POST",
-    body: JSON.stringify({ key: "CLIENTS_MAP", value, type: "encrypted", target }),
+    body: JSON.stringify({ key: "CLIENTS_MAP", value, type, target }),
   });
 }
 
