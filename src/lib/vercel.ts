@@ -34,9 +34,10 @@ function teamQuery(): string {
   return team ? `teamId=${encodeURIComponent(team)}` : "";
 }
 
-function envQuery(decrypt: boolean): string {
+function envQuery(decrypt: boolean, upsert = false): string {
   const params = new URLSearchParams();
   if (decrypt) params.set("decrypt", "true");
+  if (upsert) params.set("upsert", "true");
   const team = process.env.VERCEL_TEAM_ID?.trim();
   if (team) params.set("teamId", team);
   const qs = params.toString();
@@ -120,7 +121,12 @@ export async function getClientsMapFromVercel(): Promise<ClientsMap | null> {
   }
 }
 
-/** Перезаписывает CLIENTS_MAP в env проекта. Ручное редактирование не нужно. */
+/**
+ * Перезаписывает CLIENTS_MAP в env проекта. Ручное редактирование не нужно.
+ * Использует upsert вместо DELETE+POST: удаление с последующим созданием
+ * оставляло окно, в котором переменной нет вовсе, и при ошибке создания
+ * карта терялась (живой случай 2026-11-16: DELETE прошёл, POST — нет).
+ */
 export async function updateClientsMapEnv(map: ClientsMap): Promise<void> {
   const value = JSON.stringify(map);
   const existing = (await listEnvVars()).find((v) => v.key === "CLIENTS_MAP");
@@ -129,13 +135,7 @@ export async function updateClientsMapEnv(map: ClientsMap): Promise<void> {
   // обратно через decrypt=true, а в дашборде оно скрыто.
   const type = existing?.type || "encrypted";
 
-  if (existing) {
-    await vercelFetch(`/v9/projects/${projectId()}/env/${existing.id}${teamQuery()}`, {
-      method: "DELETE",
-    });
-  }
-
-  await vercelFetch(`/v10/projects/${projectId()}/env${teamQuery()}`, {
+  await vercelFetch(`/v10/projects/${projectId()}/env${envQuery(false, true)}`, {
     method: "POST",
     body: JSON.stringify({ key: "CLIENTS_MAP", value, type, target }),
   });

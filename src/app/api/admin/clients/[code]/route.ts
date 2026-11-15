@@ -33,7 +33,10 @@ export async function DELETE(
   } catch (error) {
     console.error("updateClientsMapEnv error:", error);
     return NextResponse.json(
-      { error: "Не удалось сохранить изменения в Vercel" },
+      {
+        error: "Не удалось сохранить изменения в Vercel",
+        detail: error instanceof Error ? error.message : String(error),
+      },
       { status: 502 }
     );
   }
@@ -88,7 +91,10 @@ export async function POST(
   } catch (error) {
     console.error("updateClientsMapEnv error:", error);
     return NextResponse.json(
-      { error: "Не удалось сохранить изменения в Vercel" },
+      {
+        error: "Не удалось сохранить изменения в Vercel",
+        detail: error instanceof Error ? error.message : String(error),
+      },
       { status: 502 }
     );
   }

@@ -123,7 +123,10 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error("updateClientsMapEnv error:", error);
     return NextResponse.json(
-      { error: "Не удалось сохранить клиента в Vercel, проверьте VERCEL_TOKEN" },
+      {
+        error: "Не удалось сохранить клиента в Vercel, проверьте VERCEL_TOKEN",
+        detail: error instanceof Error ? error.message : String(error),
+      },
       { status: 502 }
     );
   }
