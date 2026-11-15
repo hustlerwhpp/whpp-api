@@ -31,7 +31,7 @@ function projectId(): string {
 
 function teamQuery(): string {
   const team = process.env.VERCEL_TEAM_ID?.trim();
-  return team ? `teamId=${encodeURIComponent(team)}` : "";
+  return team ? `?teamId=${encodeURIComponent(team)}` : "";
 }
 
 function envQuery(decrypt: boolean, upsert = false): string {
